@@ -1,20 +1,22 @@
-ifndef prodCons_hpp
-#define prodCons_hpp
+#ifndef prodCons_HPP
+#define prodCons_HPP
 
-#include <fcntl.h>
-#include <semaphore.h>
-#include <sys/stat.h>
-#include <sys/mman.h>
-#include <unistd.h>
-#include <cstdlib>
+#include <fcntl.h>           // file control
+#include <semaphore.h>       // semaphore functions sem_t
+#include <sys/mman.h>        // memory mapping
+#include <sys/stat.h>        // shared memory
+#include <unistd.h>          // ftruncate, sleep
+#include <cstdlib>           
 #include <cstdio>
-#include <ctype.h>
 
+// shared memory 
 
 struct SharedMemory {
-    int buffer[2]; // Buffer size of 2
-    sem_t empty;    // Semaphore for empty slots
-    sem_t full;     // Semaphore for full slots
+    int data[2];      // buffer
+    int count;        // items currently in buffer
+
+    sem_t* full;      // pointer to named semaphore for consumer
+    sem_t* empty;     // pointer to named semaphore for producer
 };
 
-#endif
+#endif // prodCons_HPP
