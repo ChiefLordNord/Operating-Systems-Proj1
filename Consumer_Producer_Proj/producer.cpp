@@ -1,88 +1,94 @@
-#include "prodCons.hpp"
-#include <iostream>
-#include <cstring>    // memset
+//Antonio Chieffallo
+//3/28/2025
 
-// shared memory
-constexpr const char* shmName = "/prod_cons_shm";
+#include "prodCons.hpp"
+using std::cout; using std::endl;
+
+// Helper function to produce a value and place it in shared memory
+void produceValue(sharedMem* mem, int value) {
+    int prod_first = rand() % 2;
+    int prod_second = prod_first == 0 ? 1 : 0;
+
+    if(mem->arr[prod_first] == 0) {
+        cout << "Producer made: \t" << value << endl;
+        mem->arr[prod_first] = value;
+    } else if (mem->arr[prod_second] == 0) {
+        cout << "Producer made: \t" << value << endl;
+        mem->arr[prod_second] = value;
+    }
+}
 
 int main() {
 
-    // unlink to avoid file error
-    shm_unlink(shmName);
+    // Open or create shared memory and handle errors
 
-    // create shared memory
-    int shm_fd = shm_open(shmName, O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR);
-    if (shm_fd < 0) {
-        perror("Producer: shm_open failed");
-        exit(EXIT_FAILURE);
+    int fd = shm_open("/sharedmemry", O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+    if(fd == -1) {
+        cout << "Error with shm_open: " << errno << endl;
+    }
+    
+    // Resize shared memory to fit the structure
+
+    struct sharedMem *mem;
+    int err = ftruncate(fd, sizeof(*mem));
+    if(err == -1) { 
+        cout << "Error with ftruncate: " << errno << endl;
     }
 
-    // set shared memory to SharedMemory
-    if (ftruncate(shm_fd, sizeof(SharedMemory)) == -1) {
-        perror("Producer: ftruncate failed");
-        exit(EXIT_FAILURE);
+    // Map shared memory and handle errors
+
+    mem = static_cast<sharedMem*>(mmap(NULL, sizeof(*mem), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0));
+    if(mem == MAP_FAILED) {
+        cout << "Error with mmap: " << errno << endl;
+    }
+    
+    // Close the file descriptor
+
+    close(fd);
+
+    // Initialize semaphore and shared memory array
+
+    sem_init(&(mem->semaphore), 1, 1);
+    mem->arr[0] = 0; // Initialize first slot to 0 (empty)
+    mem->arr[1] = 0; // Initialize second slot to 0 (empty)
+
+
+    // Main producer loop: generates values, places them in shared memory, and ensures synchronization.
+
+    srand(time(nullptr));
+ 
+    for(int i = 0; i < 25; ++i) {
+
+        // Wait for access to the critical section.
+
+        sem_wait(&(mem->semaphore));
+
+        // Produce a value between 1 and 100 (0 represents empty)
+
+        int value = (rand() % 100) + 1;
+
+        // Use helper function to place value in shared memory
+        produceValue(mem, value);
+
+        // Signal other programs that the critical section is free
+
+        sem_post(&(mem->semaphore));
+        
+        // Wait for a second half the time.
+        
+        sleep(rand() % 2);
+    }
+    
+        // Destroy shared semaphore.
+    
+    sem_destroy(&(mem->semaphore));
+
+    // Unlink shared memory and handle errors
+   
+    fd = shm_unlink("/sharedmemry");
+    if(fd == -1) {
+        cout << "Error with shm_unlink: " << errno << endl;
     }
 
-    // put shared memory onto map
-    SharedMemory* shm = reinterpret_cast<SharedMemory*>(
-        mmap(nullptr, sizeof(SharedMemory), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0)
-    );
-    if (shm == MAP_FAILED) {
-        perror("Producer: mmap failed");
-        exit(EXIT_FAILURE);
-    }
-
-    shm->count = 0;
-    memset(shm->data, 0, sizeof(shm->data));
-
-    // semaphores
-    // empty = 2
-    if (sem_init(&shm->empty, 1, 2) == -1) {
-        perror("Producer: sem_init(empty) failed");
-        exit(EXIT_FAILURE);
-    }
-    // full = 0
-    if (sem_init(&shm->full, 1, 0) == -1) {
-        perror("Producer: sem_init(full) failed");
-        exit(EXIT_FAILURE);
-    }
-
-    // produce items
-
-    for (int i = 0; i < 10; ++i) {
-        // wait
-        if (sem_wait(&shm->empty) == -1) {
-            perror("Producer: sem_wait(empty) failed");
-            exit(EXIT_FAILURE);
-        }
-
-        // critical section
-        // count = new item index
-        if (shm->count < 2) {
-            shm->data[shm->count] = i;
-            std::cout << "Producer: produced " << i
-                      << " at index " << shm->count << std::endl;
-            ++shm->count;
-        } else {
-            std::cerr << "Producer: buffer overflow" << std::endl;
-        }
-
-        // signal
-        if (sem_post(&shm->full) == -1) {
-            perror("Producer: sem_post(full) failed");
-            exit(EXIT_FAILURE);
-        }
-    }
-
-    //sleep(1);
-
-    // delete semaphores and shared memory
-    sem_destroy(&shm->empty);
-    sem_destroy(&shm->full);
-    if (shm_unlink(shmName) == -1) {
-        perror("Producer: shm_unlink failed");
-        exit(EXIT_FAILURE);
-    }
-
-    return 0;
+    exit(EXIT_SUCCESS);
 }

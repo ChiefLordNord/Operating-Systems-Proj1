@@ -1,22 +1,22 @@
-#ifndef prodCons_HPP
-#define prodCons_HPP
+// Antonio Chieffallo
+// 3/28/2025
 
-#include <fcntl.h>           // file control
-#include <semaphore.h>       // semaphore functions sem_t
-#include <sys/mman.h>        // memory mapping
-#include <sys/stat.h>        // shared memory
-#include <unistd.h>          // ftruncate, sleep
-#include <cstdlib>           
-#include <cstdio>
+#ifndef HEADER_CPP
+#define HEADER_CPP
 
-// shared memory 
+#include <iostream>
+#include <semaphore.h>
+#include <sys/ipc.h>
+#include <stdlib.h>
+#include <sys/shm.h>
+#include <unistd.h>
+#include <pthread.h>
+#include <fcntl.h>
+#include <sys/mman.h>
 
-struct SharedMemory {
-    int data[2];      // buffer
-    int count;        // items currently in buffer
-
-    sem_t* full;      // pointer to named semaphore for consumer
-    sem_t* empty;     // pointer to named semaphore for producer
+struct sharedMem {
+    int arr[2];
+    sem_t semaphore;
 };
 
-#endif // prodCons_HPP
+#endif

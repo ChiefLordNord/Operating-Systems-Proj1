@@ -1,0 +1,37 @@
+g++ producer.cpp -pthread -lrt -o producer
+g++ consumer.cpp -pthread -lrt -o consumer
+./producer & ./consumer
+Producer made:  66
+Producer made:  64
+Consumer took:  66
+Consumer took:  64
+Producer made:  66
+Producer made:  54
+Consumer took:  54
+Producer made:  47
+Consumer took:  66
+Consumer took:  47
+Producer made:  12
+Consumer took:  12
+Producer made:  88
+Producer made:  80
+Consumer took:  80
+Producer made:  47
+Consumer took:  88
+Consumer took:  47
+Producer made:  83
+Producer made:  84
+Consumer took:  84
+Consumer took:  83
+Producer made:  78
+Producer made:  40
+Consumer took:  40
+Producer made:  50
+Consumer took:  50
+Consumer took:  78
+Producer made:  59
+Consumer took:  59
+Producer made:  34
+Consumer took:  34
+Producer made:  90
+Consumer took:  90

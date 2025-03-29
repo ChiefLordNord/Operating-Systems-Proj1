@@ -1,50 +1,62 @@
+//Antonio Chieffallo
+//3/28/2025
+
 #include "prodCons.hpp"
-#include <iostream>
-
-constexpr const char* shmName = "/prod_cons_shm";
-
+using std::cout; using std::endl;
 
 int main() {
+
+    // Open or create shared memory, print on error.
+
+    int fd = shm_open("/sharedmemry", O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+    if(fd == -1) {
+        cout << "Error with shm_open: " << errno << endl;
+    }
+
+    // Resize shared memory to fit the structure, print on error.
+
+    struct sharedMem* mem;
+    int err = ftruncate(fd, sizeof(*mem));
+    if(err == -1) { 
+        cout << "Error with ftruncate: " << errno << endl;
+    }
+
+    // Map shared memory and handle errors.
     
-    // existing shared memory
-    int shm_fd = shm_open(shmName, O_RDWR, 0);
-    if (shm_fd < 0) {
-        perror("Consumer: shm_open failed");
-        exit(EXIT_FAILURE);
+    mem = static_cast<sharedMem*>(mmap(NULL, sizeof(*mem), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0));
+    if(mem == MAP_FAILED) {
+        cout << "Error with mmap: " << errno << endl;
     }
+    close(fd);
 
-    // put shared memory onto map
-    SharedMemory* shm = reinterpret_cast<SharedMemory*>(
-        mmap(nullptr, sizeof(SharedMemory), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0)
-    );
-    if (shm == MAP_FAILED) {
-        perror("Consumer: mmap failed");
-        exit(EXIT_FAILURE);
-    }
+    // Stops deadlocking.
+    sleep(2);
 
-    
-    for (int i = 0; i < 10; ++i) {
-        // wait
-        if (sem_wait(shm->full) == -1) {
-            perror("Consumer: sem_wait(full) failed");
-            exit(EXIT_FAILURE);
+    // Loop to consume items, ensuring mutual exclusivity with semaphore.
+
+    for(int i = 0; i < 25; ++i) {
+        // Wait for access to the critical section
+        sem_wait(&(mem->semaphore));
+
+        // Determine the order of slots to check
+        int slots[2] = {rand() % 2, 0};
+        slots[1] = 1 - slots[0];
+
+        // Attempt to consume an item from the slots
+        for(int slot : slots) {
+            if(mem->arr[slot] != 0) {
+                cout << "Consumer took: \t" << mem->arr[slot] << endl;
+                mem->arr[slot] = 0;
+                break;
+            }
         }
 
-        // critical section
-        if (shm->count > 0) {
-            --shm->count;  // Decrement count first.
-            int item = shm->data[shm->count];  // Retrieve the item.
-            std::cout << "Consumer: consumed " << item
-                      << " from index " << shm->count << std::endl;
-        } else {
-            std::cerr << "Consumer: unexpected buffer underflow!" << std::endl;
-        }
+        // Release the semaphore
+        sem_post(&(mem->semaphore));
 
-        // signal
-        if (sem_post(shm->empty) == -1) {
-            perror("Consumer: sem_post(empty) failed");
-            exit(EXIT_FAILURE);
-        }
+        // Random delay
+        sleep(rand() % 2);
     }
-    return 0;
+
+    exit(EXIT_SUCCESS);
 }
